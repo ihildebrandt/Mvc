@@ -105,7 +105,7 @@ namespace Microsoft.AspNet.Mvc.Razor
         {
             get
             {
-                return (ViewContext == null) ? null : ViewContext.ViewBag;
+                return ViewContext?.ViewBag;
             }
         }
 
@@ -117,7 +117,7 @@ namespace Microsoft.AspNet.Mvc.Razor
         {
             get
             {
-                return (ViewContext == null) ? null : ViewContext.TempData;
+                return ViewContext?.TempData;
             }
         }
 

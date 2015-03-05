@@ -3,11 +3,12 @@
 
 using System;
 using System.Collections.Generic;
-using System.Text;
+using System.IO;
 using Microsoft.AspNet.Http;
 using Microsoft.AspNet.Http.Interfaces;
 using Microsoft.Framework.Internal;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Bson;
 
 namespace Microsoft.AspNet.Mvc
 {
@@ -16,6 +17,7 @@ namespace Microsoft.AspNet.Mvc
     /// </summary>
     public class SessionStateTempDataProvider : ITempDataProvider
     {
+        private static JsonSerializer jsonSerializer = new JsonSerializer();
         private static string TempDataSessionStateKey = "__ControllerTempData";
 
         /// <inheritdoc />
@@ -27,42 +29,50 @@ namespace Microsoft.AspNet.Mvc
                 return null;
             }
 
+            var tempDataDictionary = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
             var session = context.Session;
-            byte[] value = null;
+            byte[] value;
 
             if (session != null && session.TryGetValue(TempDataSessionStateKey, out value))
             {
-                var tempDataDictionary = JsonConvert.DeserializeObject<Dictionary<string, object>>(
-                    Encoding.UTF8.GetString(value));
+                using (var memoryStream = new MemoryStream(value))
+                using (var writer = new BsonReader(memoryStream))
+                {
+                    tempDataDictionary = jsonSerializer.Deserialize<Dictionary<string, object>>(writer);
+                }
 
                 // If we got it from Session, remove it so that no other request gets it
                 session.Remove(TempDataSessionStateKey);
-                return tempDataDictionary;
             }
 
-            return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            return tempDataDictionary;
         }
 
         /// <inheritdoc />
         public virtual void SaveTempData([NotNull] HttpContext context, IDictionary<string, object> values)
         {
-            var isDirty = (values != null && values.Count > 0);
-            if (isDirty)
+            var hasValues = (values != null && values.Count > 0);
+            if (hasValues)
             {
-                // This will throw if the session middleware is not enabled.
+                // Accessing Session property will throw if the session middleware is not enabled.
                 var session = context.Session;
-                session[TempDataSessionStateKey] = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(values));
+                
+                using (var memoryStream = new MemoryStream())
+                using (var writer = new BsonWriter(memoryStream))
+                {
+                    jsonSerializer.Serialize(writer, values);
+                    session[TempDataSessionStateKey] = memoryStream.ToArray();
+                }
             }
             else if (IsSessionEnabled(context))
             {
-                // This shouldn't throw because session is enabled.
                 var session = context.Session;
                 session.Remove(TempDataSessionStateKey);
             }
         }
 
         private static bool IsSessionEnabled(HttpContext context)
-       {
+        {
             return context.GetFeature<ISessionFeature>() != null;
         }
     }

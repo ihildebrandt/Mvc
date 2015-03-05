@@ -75,6 +75,7 @@ namespace Microsoft.AspNet.Mvc
                 object value;
                 if (TryGetValue(key, out value))
                 {
+                    // Mark the key for deletion since it is read.
                     _initialKeys.Remove(key);
                     return value;
                 }
@@ -128,12 +129,22 @@ namespace Microsoft.AspNet.Mvc
                 return;
             }
 
-            _data.RemoveFromDictionary((KeyValuePair<string, object> entry, TempDataDictionary tempData) =>
+            // Because it is not possible to delete while enumerating, a copy of the keys must be taken.
+            // Use the size of the dictionary as an upper bound to avoid creating more than one copy of the keys.
+            var removeCount = 0;
+            var keys = new string[_data.Count];
+            foreach (var entry in _data)
             {
-                var key = entry.Key;
-                return !tempData._initialKeys.Contains(key)
-                    && !tempData._retainedKeys.Contains(key);
-            }, this);
+                if (!_initialKeys.Contains(entry.Key) && !_retainedKeys.Contains(entry.Key))
+                {
+                    keys[removeCount] = entry.Key;
+                    removeCount++;
+                }
+            }
+            for (var i = 0; i < removeCount; i++)
+            {
+                _data.Remove(keys[i]);
+            }
 
             _provider.SaveTempData(_contextAccessor.HttpContext, _data);
         }
@@ -191,6 +202,7 @@ namespace Microsoft.AspNet.Mvc
         public bool TryGetValue(string key, out object value)
         {
             Load();
+            // Mark the key for deletion since it is read.
             _initialKeys.Remove(key);
             return _data.TryGetValue(key, out value);
         }
@@ -243,6 +255,7 @@ namespace Microsoft.AspNet.Mvc
                 get
                 {
                     var kvp = _enumerator.Current;
+                    // Mark the key for deletion since it is read.
                     _tempData._initialKeys.Remove(kvp.Key);
                     return kvp;
                 }

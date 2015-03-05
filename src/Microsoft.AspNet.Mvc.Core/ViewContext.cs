@@ -57,7 +57,6 @@ namespace Microsoft.AspNet.Mvc
             [NotNull] ViewContext viewContext,
             [NotNull] IView view,
             [NotNull] ViewDataDictionary viewData,
-            [NotNull] ITempDataDictionary tempData,
             [NotNull] TextWriter writer)
             : base(viewContext)
         {
@@ -69,7 +68,7 @@ namespace Microsoft.AspNet.Mvc
 
             View = view;
             ViewData = viewData;
-            TempData = tempData;
+            TempData = viewContext.TempData;
             Writer = writer;
         }
 
